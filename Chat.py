@@ -22,7 +22,11 @@ class Client(Participant):
         self.thread = threading.Thread(target=self.input)
 
     def socket_connector(self):
-        self.socket.connect((self.IP, self.PORT))
+        try:
+            self.socket.connect((self.IP, self.PORT))
+
+        except(ConnectionRefusedError):
+            print("there is no connection to the server")
 
     def input(self):
         while True:
@@ -35,13 +39,14 @@ class Client(Participant):
         try:
             while True:
                 self.rlist, self.wlist, self.xlist = select.select([self.socket], [], [])
-
                 input = self.socket.recv(1024)
                 print(input.decode())
 
         except (ConnectionRefusedError, ConnectionResetError):
             print("Connection with the server was lost")
             self.socket.close()
+
+            self.thread.join()
 
 
 class Server(Participant):
@@ -76,11 +81,13 @@ class Server(Participant):
                             name = new_socket.recv(1024).decode()
 
                         self.socket_dic[new_socket] = name
-                        print(f'{self.socket_dic[new_socket]}\n')
+                        print(f'connected {name} : {new_socket}\n')
+                        new_socket.send("connected".encode())
+
                     except (ConnectionResetError, ConnectionAbortedError):
                         self.open_client_sockets.remove(new_socket)
                         del self.socket_dic[new_socket]
-                        print("closed\n")
+                        print(f'closed {new_socket}\n')
 
                 else:
                     try:
@@ -91,8 +98,8 @@ class Server(Participant):
 
                     except (ConnectionResetError, ConnectionAbortedError):
                         self.open_client_sockets.remove(current_socket)
+                        print(f'closed {self.socket_dic[current_socket]} : {current_socket}\n')
                         del self.socket_dic[current_socket]
-                        print("closed\n")
 
     def send(self):
         for i in self.messages_to_send:
